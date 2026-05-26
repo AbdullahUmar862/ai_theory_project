@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AgriShield AI — Crop Disease Detector</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green-900: #1b4332;
+      --green-800: #2d6a4f;
+      --green-700: #40916c;
+      --green-500: #52b788;
+      --green-300: #95d5b2;
+      --green-100: #d8f3dc;
+      --green-50:  #f0fdf4;
+      --text:      #1b2d20;
+      --text-muted:#4a6358;
+      --border:    #b7e4c7;
+      --white:     #ffffff;
+      --error:     #b91c1c;
+      --error-bg:  #fef2f2;
+      --warn:      #92400e;
+      --warn-bg:   #fffbeb;
+      --radius:    10px;
+      --shadow:    0 2px 12px rgba(0,0,0,.08);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--green-50);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header */
+    header {
+      background: linear-gradient(135deg, var(--green-900), var(--green-700));
+      color: var(--white);
+      padding: 1rem 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,.2);
+    }
+    .logo-icon { font-size: 2rem; }
+    .logo-text h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: -.3px; }
+    .logo-text p  { font-size: .8rem; opacity: .8; margin-top: 1px; }
+
+    /* Tabs */
+    .tabs {
+      background: var(--green-800);
+      display: flex;
+      gap: 2px;
+      padding: 0 1rem;
+      border-bottom: 3px solid var(--green-500);
+    }
+    .tab-btn {
+      background: none;
+      border: none;
+      color: var(--green-300);
+      padding: .75rem 1.25rem;
+      cursor: pointer;
+      font-size: .9rem;
+      font-weight: 500;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -3px;
+      transition: all .15s;
+      white-space: nowrap;
+    }
+    .tab-btn:hover  { color: var(--white); }
+    .tab-btn.active { color: var(--white); border-bottom-color: var(--green-300); }
+
+    /* Main content */
+    main { flex: 1; padding: 1.5rem; max-width: 900px; width: 100%; margin: 0 auto; }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* Upload card */
+    .card {
+      background: var(--white);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 1.5rem;
+      margin-bottom: 1.25rem;
+    }
+    .card h2 {
+      font-size: 1.1rem;
+      color: var(--green-800);
+      margin-bottom: .5rem;
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+    }
+    .card p.hint { font-size: .85rem; color: var(--text-muted); margin-bottom: 1rem; }
+
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all .15s;
+      background: var(--green-50);
+      position: relative;
+    }
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: var(--green-500);
+      background: var(--green-100);
+    }
+    .drop-zone input[type=file] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer;
+    }
+    .drop-zone .dz-icon  { font-size: 2.5rem; margin-bottom: .5rem; }
+    .drop-zone .dz-text  { color: var(--text-muted); font-size: .9rem; }
+    .drop-zone .dz-text strong { color: var(--green-700); }
+
+    .preview-wrap {
+      display: none;
+      margin-top: 1rem;
+      text-align: center;
+    }
+    .preview-wrap img {
+      max-height: 220px;
+      max-width: 100%;
+      border-radius: 8px;
+      border: 2px solid var(--border);
+      object-fit: contain;
+    }
+    .preview-wrap .change-btn {
+      display: inline-block;
+      margin-top: .5rem;
+      font-size: .8rem;
+      color: var(--green-700);
+      cursor: pointer;
+      text-decoration: underline;
+      background: none;
+      border: none;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
+      padding: .65rem 1.4rem;
+      border-radius: 8px;
+      font-size: .9rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all .15s;
+    }
+    .btn-primary {
+      background: var(--green-700);
+      color: var(--white);
+    }
+    .btn-primary:hover:not(:disabled) { background: var(--green-800); }
+    .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-secondary {
+      background: var(--green-100);
+      color: var(--green-800);
+    }
+    .btn-secondary:hover { background: var(--green-300); }
+
+    .analyze-row {
+      margin-top: 1rem;
+      display: flex;
+      gap: .75rem;
+      align-items: center;
+    }
+    .spinner {
+      display: none;
+      width: 20px; height: 20px;
+      border: 3px solid var(--border);
+      border-top-color: var(--green-700);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Results */
+    .results-card { display: none; }
+    .results-card.visible { display: block; }
+
+    .diagnosis-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      gap: .5rem;
+      margin-bottom: 1rem;
+    }
+    .diagnosis-header h3 { font-size: 1.2rem; color: var(--green-800); }
+    .badge {
+      padding: .3rem .75rem;
+      border-radius: 20px;
+      font-size: .8rem;
+      font-weight: 600;
+    }
+    .badge-healthy { background: var(--green-100); color: var(--green-800); }
+    .badge-diseased { background: #fee2e2; color: #991b1b; }
+    .badge-pest    { background: #fef3c7; color: #92400e; }
+
+    .confidence-bar {
+      height: 8px;
+      border-radius: 4px;
+      background: var(--green-100);
+      margin: .5rem 0 1rem;
+      overflow: hidden;
+    }
+    .confidence-fill {
+      height: 100%;
+      border-radius: 4px;
+      background: linear-gradient(90deg, var(--green-500), var(--green-700));
+      transition: width .6s ease;
+    }
+    .confidence-label { font-size: .8rem; color: var(--text-muted); }
+
+    .info-section { margin-bottom: 1rem; }
+    .info-section h4 {
+      font-size: .85rem;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      color: var(--text-muted);
+      margin-bottom: .5rem;
+    }
+    .info-list { list-style: none; }
+    .info-list li {
+      padding: .4rem .75rem;
+      background: var(--green-50);
+      border-left: 3px solid var(--green-300);
+      border-radius: 0 4px 4px 0;
+      margin-bottom: .35rem;
+      font-size: .9rem;
+    }
+
+    .notice {
+      padding: .85rem 1rem;
+      border-radius: 8px;
+      font-size: .875rem;
+      display: flex;
+      gap: .6rem;
+      align-items: flex-start;
+    }
+    .notice-warn { background: var(--warn-bg); color: var(--warn); border: 1px solid #fde68a; }
+    .notice-error { background: var(--error-bg); color: var(--error); border: 1px solid #fecaca; }
+    .notice-icon { font-size: 1.1rem; flex-shrink: 0; }
+
+    /* Chat */
+    .chat-wrap { display: flex; flex-direction: column; gap: 1rem; }
+    .chat-messages {
+      background: var(--white);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      height: 420px;
+      overflow-y: auto;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: .75rem;
+    }
+    .msg {
+      display: flex;
+      gap: .6rem;
+      align-items: flex-start;
+      max-width: 82%;
+    }
+    .msg-avatar {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      flex-shrink: 0;
+    }
+    .msg-user   { margin-left: auto; flex-direction: row-reverse; }
+    .msg-user .msg-avatar   { background: var(--green-700); color: var(--white); }
+    .msg-bot  .msg-avatar   { background: var(--green-100); }
+    .msg-bubble {
+      padding: .6rem .9rem;
+      border-radius: 12px;
+      font-size: .9rem;
+      line-height: 1.55;
+    }
+    .msg-user .msg-bubble  { background: var(--green-700); color: var(--white); border-bottom-right-radius: 3px; }
+    .msg-bot  .msg-bubble  { background: var(--green-50);  color: var(--text);  border-bottom-left-radius: 3px; border: 1px solid var(--border); }
+    .msg-bubble strong     { font-weight: 700; }
+    .msg-bubble ul         { padding-left: 1.2rem; margin: .35rem 0; }
+    .msg-bubble li         { margin-bottom: .2rem; }
+
+    .chat-input-area {
+      display: flex;
+      gap: .6rem;
+      align-items: flex-end;
+    }
+    .chat-input-area textarea {
+      flex: 1;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: .65rem .9rem;
+      font-size: .9rem;
+      resize: none;
+      font-family: inherit;
+      line-height: 1.4;
+      max-height: 120px;
+      overflow-y: auto;
+      transition: border-color .15s;
+    }
+    .chat-input-area textarea:focus {
+      outline: none;
+      border-color: var(--green-500);
+    }
+    .chat-controls {
+      display: flex;
+      gap: .5rem;
+      flex-direction: column;
+    }
+    .chat-controls .btn { padding: .65rem .9rem; }
+
+    /* Typing indicator */
+    .typing-dots {
+      display: inline-flex;
+      gap: 4px;
+      align-items: center;
+      padding: .2rem 0;
+    }
+    .typing-dots span {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--green-500);
+      animation: bounce .9s infinite;
+    }
+    .typing-dots span:nth-child(2) { animation-delay: .2s; }
+    .typing-dots span:nth-child(3) { animation-delay: .4s; }
+    @keyframes bounce {
+      0%, 80%, 100% { transform: translateY(0); }
+      40%           { transform: translateY(-6px); }
+    }
+
+    /* Responsive */
+    @media (max-width: 600px) {
+      main { padding: 1rem; }
+      .tab-btn { padding: .65rem .8rem; font-size: .82rem; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo-icon">🌿</div>
+  <div class="logo-text">
+    <h1>AgriShield AI</h1>
+    <p>Crop Disease Detection &amp; Farming Advisor</p>
+  </div>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button class="tab-btn active" data-tab="plant" role="tab">🌱 Plant Disease Scanner</button>
+  <button class="tab-btn"        data-tab="fruit" role="tab">🍎 Fruit Disease Scanner</button>
+  <button class="tab-btn"        data-tab="chat"  role="tab">💬 AI Farming Advisor</button>
+</nav>
+
+<main>
+
+  <!-- ─── Plant Disease Scanner ─── -->
+  <section id="plant-panel" class="tab-panel active" role="tabpanel">
+    <div class="card">
+      <h2>🌿 Plant Leaf Disease Scanner</h2>
+      <p class="hint">Upload a clear photo of a plant leaf. The AI model will diagnose diseases for tomato, potato, corn, apple, grape, and pepper.</p>
+
+      <div class="notice notice-warn" style="margin-bottom:1rem;">
+        <span class="notice-icon">⚠️</span>
+        <span>The AI image-analysis model requires large TensorFlow model files that are not hosted in this deployment. For local inference, run the Flask backend with the trained <code>model/plant_disease_model.h5</code> file. The <strong>AI Chat Advisor</strong> tab works fully and can answer disease questions.</span>
+      </div>
+
+      <div class="drop-zone" id="plant-drop">
+        <input type="file" id="plant-file" accept="image/png,image/jpeg,image/webp" />
+        <div class="dz-icon">📷</div>
+        <div class="dz-text"><strong>Click to upload</strong> or drag &amp; drop<br>PNG, JPG, JPEG, WEBP up to 16 MB</div>
+      </div>
+      <div class="preview-wrap" id="plant-preview-wrap">
+        <img id="plant-preview" src="" alt="Preview" />
+        <br><button class="change-btn" onclick="resetScanner('plant')">Change image</button>
+      </div>
+      <div class="analyze-row">
+        <button class="btn btn-primary" id="plant-analyze-btn" disabled onclick="analyze('plant')">
+          🔍 Analyze Plant
+        </button>
+        <div class="spinner" id="plant-spinner"></div>
+      </div>
+    </div>
+
+    <div class="card results-card" id="plant-results">
+      <div class="diagnosis-header">
+        <h3 id="plant-diag-title">—</h3>
+        <span class="badge" id="plant-status-badge">—</span>
+      </div>
+      <div class="confidence-label" id="plant-confidence-label"></div>
+      <div class="confidence-bar"><div class="confidence-fill" id="plant-conf-fill" style="width:0"></div></div>
+      <div class="info-section">
+        <h4>Diagnosis</h4>
+        <p id="plant-diagnosis-text" style="font-size:.9rem;color:var(--text-muted)"></p>
+      </div>
+      <div class="info-section" id="plant-symptoms-section">
+        <h4>Symptoms</h4>
+        <ul class="info-list" id="plant-symptoms-list"></ul>
+      </div>
+      <div class="info-section" id="plant-medicine-section">
+        <h4>Recommended Treatment</h4>
+        <ul class="info-list" id="plant-medicine-list"></ul>
+      </div>
+      <div class="info-section" id="plant-management-section">
+        <h4>Management</h4>
+        <ul class="info-list" id="plant-management-list"></ul>
+      </div>
+    </div>
+
+    <div class="card results-card" id="plant-error-card">
+      <div class="notice notice-error">
+        <span class="notice-icon">❌</span>
+        <span id="plant-error-msg"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Fruit Disease Scanner ─── -->
+  <section id="fruit-panel" class="tab-panel" role="tabpanel">
+    <div class="card">
+      <h2>🍎 Fruit Disease Scanner</h2>
+      <p class="hint">Upload a clear photo of a fruit. The AI model will identify diseases in mango, apple, blueberry, cherry, corn, grape, orange, peach, pepper, potato, raspberry, soybean, squash, and strawberry.</p>
+
+      <div class="notice notice-warn" style="margin-bottom:1rem;">
+        <span class="notice-icon">⚠️</span>
+        <span>The fruit disease model requires <code>model/fruit_disease_model.h5</code> which is not hosted in this deployment. For local inference, run the Flask backend. The <strong>AI Chat Advisor</strong> tab works fully.</span>
+      </div>
+
+      <div class="drop-zone" id="fruit-drop">
+        <input type="file" id="fruit-file" accept="image/png,image/jpeg,image/webp" />
+        <div class="dz-icon">📷</div>
+        <div class="dz-text"><strong>Click to upload</strong> or drag &amp; drop<br>PNG, JPG, JPEG, WEBP up to 16 MB</div>
+      </div>
+      <div class="preview-wrap" id="fruit-preview-wrap">
+        <img id="fruit-preview" src="" alt="Preview" />
+        <br><button class="change-btn" onclick="resetScanner('fruit')">Change image</button>
+      </div>
+      <div class="analyze-row">
+        <button class="btn btn-primary" id="fruit-analyze-btn" disabled onclick="analyze('fruit')">
+          🔍 Analyze Fruit
+        </button>
+        <div class="spinner" id="fruit-spinner"></div>
+      </div>
+    </div>
+
+    <div class="card results-card" id="fruit-results">
+      <div class="diagnosis-header">
+        <h3 id="fruit-diag-title">—</h3>
+        <span class="badge" id="fruit-status-badge">—</span>
+      </div>
+      <div class="confidence-label" id="fruit-confidence-label"></div>
+      <div class="confidence-bar"><div class="confidence-fill" id="fruit-conf-fill" style="width:0"></div></div>
+      <div class="info-section">
+        <h4>Diagnosis</h4>
+        <p id="fruit-diagnosis-text" style="font-size:.9rem;color:var(--text-muted)"></p>
+      </div>
+      <div class="info-section" id="fruit-symptoms-section">
+        <h4>Symptoms</h4>
+        <ul class="info-list" id="fruit-symptoms-list"></ul>
+      </div>
+      <div class="info-section" id="fruit-medicine-section">
+        <h4>Recommended Treatment</h4>
+        <ul class="info-list" id="fruit-medicine-list"></ul>
+      </div>
+      <div class="info-section" id="fruit-management-section">
+        <h4>Management</h4>
+        <ul class="info-list" id="fruit-management-list"></ul>
+      </div>
+    </div>
+
+    <div class="card results-card" id="fruit-error-card">
+      <div class="notice notice-error">
+        <span class="notice-icon">❌</span>
+        <span id="fruit-error-msg"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── AI Advisor / Chat ─── -->
+  <section id="chat-panel" class="tab-panel" role="tabpanel">
+    <div class="card chat-wrap">
+      <h2>💬 AI Farming Advisor</h2>
+      <p class="hint">Ask anything about crop diseases, soil health, irrigation, pest control, and more.</p>
+
+      <div class="chat-messages" id="chat-messages">
+        <div class="msg msg-bot">
+          <div class="msg-avatar">🌿</div>
+          <div class="msg-bubble">
+            <strong>Welcome to AgriShield AI Advisor!</strong><br>
+            I'm your virtual agronomist. Ask me about:<br>
+            • Crop diseases &amp; treatments<br>
+            • Soil health &amp; fertilization<br>
+            • Irrigation &amp; pest control<br>
+            • Crop rotation &amp; organic farming<br><br>
+            Try: <em>"How to treat tomato blight?"</em>
+          </div>
+        </div>
+      </div>
+
+      <div class="chat-input-area">
+        <textarea id="chat-input" rows="2" placeholder="Ask a farming question…" onkeydown="handleChatKey(event)"></textarea>
+        <div class="chat-controls">
+          <button class="btn btn-primary" onclick="sendChat()">Send</button>
+          <button class="btn btn-secondary" onclick="clearChat()">Clear</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+  // ── Tab switching ──────────────────────────────────────────────────────────
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'))
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'))
+      btn.classList.add('active')
+      document.getElementById(btn.dataset.tab + '-panel').classList.add('active')
+    })
+  })
+
+  // ── Upload / drop zone ─────────────────────────────────────────────────────
+  function setupDropZone(prefix) {
+    const zone = document.getElementById(prefix + '-drop')
+    const file = document.getElementById(prefix + '-file')
+
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover') })
+    zone.addEventListener('dragleave', () => zone.classList.remove('dragover'))
+    zone.addEventListener('drop', e => {
+      e.preventDefault()
+      zone.classList.remove('dragover')
+      const f = e.dataTransfer.files[0]
+      if (f) handleFile(prefix, f)
+    })
+    file.addEventListener('change', () => { if (file.files[0]) handleFile(prefix, file.files[0]) })
+  }
+
+  function handleFile(prefix, file) {
+    if (!file.type.startsWith('image/')) return
+    const reader = new FileReader()
+    reader.onload = e => {
+      document.getElementById(prefix + '-preview').src = e.target.result
+      document.getElementById(prefix + '-drop').style.display = 'none'
+      document.getElementById(prefix + '-preview-wrap').style.display = 'block'
+      document.getElementById(prefix + '-analyze-btn').disabled = false
+      hideResults(prefix)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  function resetScanner(prefix) {
+    document.getElementById(prefix + '-drop').style.display = ''
+    document.getElementById(prefix + '-preview-wrap').style.display = 'none'
+    document.getElementById(prefix + '-analyze-btn').disabled = true
+    document.getElementById(prefix + '-file').value = ''
+    hideResults(prefix)
+  }
+
+  function hideResults(prefix) {
+    document.getElementById(prefix + '-results').classList.remove('visible')
+    document.getElementById(prefix + '-error-card').classList.remove('visible')
+  }
+
+  setupDropZone('plant')
+  setupDropZone('fruit')
+
+  // ── Image analysis ─────────────────────────────────────────────────────────
+  async function analyze(prefix) {
+    const fileInput = document.getElementById(prefix + '-file')
+    const files = fileInput.files
+    if (!files || files.length === 0) {
+      // Re-create file from data URL (if drag-dropped)
+      showError(prefix, 'Please select an image file first.')
+      return
+    }
+
+    const spinner = document.getElementById(prefix + '-spinner')
+    const btn     = document.getElementById(prefix + '-analyze-btn')
+    spinner.style.display = 'block'
+    btn.disabled = true
+    hideResults(prefix)
+
+    const formData = new FormData()
+    formData.append('image', files[0])
+
+    const endpoint = prefix === 'fruit' ? '/api/analyze_fruit' : '/api/analyze'
+
+    try {
+      const res  = await fetch(endpoint, { method: 'POST', body: formData })
+      const data = await res.json()
+
+      if (data.success && data.data) {
+        showResults(prefix, data.data)
+      } else {
+        showError(prefix, data.error || 'An unexpected error occurred.')
+      }
+    } catch (err) {
+      showError(prefix, 'Network error. Please check your connection and try again.')
+    } finally {
+      spinner.style.display = 'none'
+      btn.disabled = false
+    }
+  }
+
+  function showResults(prefix, d) {
+    document.getElementById(prefix + '-diag-title').textContent =
+      (d.plant_type || '—') + (d.diagnosis ? ' — ' + d.diagnosis : '')
+
+    const badge = document.getElementById(prefix + '-status-badge')
+    badge.textContent = d.health_status || '—'
+    badge.className = 'badge'
+    if (d.health_status === 'Healthy') badge.classList.add('badge-healthy')
+    else if (d.health_status === 'Pest Infestation') badge.classList.add('badge-pest')
+    else badge.classList.add('badge-diseased')
+
+    const pct = parseFloat(d.confidence) || 0
+    document.getElementById(prefix + '-confidence-label').textContent =
+      d.confidence ? 'Confidence: ' + d.confidence : ''
+    document.getElementById(prefix + '-conf-fill').style.width = Math.min(pct, 100) + '%'
+
+    document.getElementById(prefix + '-diagnosis-text').textContent = d.diagnosis || ''
+
+    fillList(prefix + '-symptoms-list',  d.symptoms   || [])
+    fillList(prefix + '-medicine-list',  d.medicine   || [])
+    fillList(prefix + '-management-list',d.management || [])
+
+    document.getElementById(prefix + '-symptoms-section').style.display  = (d.symptoms   && d.symptoms.length)   ? '' : 'none'
+    document.getElementById(prefix + '-medicine-section').style.display  = (d.medicine   && d.medicine.length)   ? '' : 'none'
+    document.getElementById(prefix + '-management-section').style.display= (d.management && d.management.length) ? '' : 'none'
+
+    document.getElementById(prefix + '-results').classList.add('visible')
+  }
+
+  function fillList(id, items) {
+    const ul = document.getElementById(id)
+    ul.innerHTML = ''
+    items.forEach(text => {
+      const li = document.createElement('li')
+      li.textContent = text
+      ul.appendChild(li)
+    })
+  }
+
+  function showError(prefix, msg) {
+    document.getElementById(prefix + '-error-msg').textContent = msg
+    document.getElementById(prefix + '-error-card').classList.add('visible')
+  }
+
+  // ── Chat ───────────────────────────────────────────────────────────────────
+  function handleChatKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat() }
+  }
+
+  async function sendChat() {
+    const input = document.getElementById('chat-input')
+    const msg   = input.value.trim()
+    if (!msg) return
+
+    appendMsg(msg, 'user')
+    input.value = ''
+    autoResize(input)
+
+    const typingId = appendTyping()
+
+    try {
+      const res  = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: msg }),
+      })
+      const data = await res.json()
+      removeTyping(typingId)
+      if (data.success && data.reply) {
+        appendMsg(data.reply, 'bot')
+      } else {
+        appendMsg(data.error || 'Sorry, I encountered an error. Please try again.', 'bot')
+      }
+    } catch {
+      removeTyping(typingId)
+      appendMsg('Network error. Please check your connection.', 'bot')
+    }
+  }
+
+  function appendMsg(text, who) {
+    const container = document.getElementById('chat-messages')
+    const div = document.createElement('div')
+    div.className = 'msg msg-' + who
+
+    const avatar = document.createElement('div')
+    avatar.className = 'msg-avatar'
+    avatar.textContent = who === 'user' ? '👤' : '🌿'
+
+    const bubble = document.createElement('div')
+    bubble.className = 'msg-bubble'
+    bubble.innerHTML = renderMarkdown(text)
+
+    div.appendChild(avatar)
+    div.appendChild(bubble)
+    container.appendChild(div)
+    container.scrollTop = container.scrollHeight
+    return div
+  }
+
+  function appendTyping() {
+    const container = document.getElementById('chat-messages')
+    const div = document.createElement('div')
+    div.className = 'msg msg-bot'
+    div.id = 'typing-' + Date.now()
+    div.innerHTML = '<div class="msg-avatar">🌿</div><div class="msg-bubble"><div class="typing-dots"><span></span><span></span><span></span></div></div>'
+    container.appendChild(div)
+    container.scrollTop = container.scrollHeight
+    return div.id
+  }
+
+  function removeTyping(id) {
+    const el = document.getElementById(id)
+    if (el) el.remove()
+  }
+
+  function renderMarkdown(text) {
+    return text
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/^- (.+)$/gm, '<li>$1</li>')
+      .replace(/(<li>.*<\/li>\n?)+/g, m => '<ul>' + m + '</ul>')
+      .replace(/\n/g, '<br>')
+  }
+
+  async function clearChat() {
+    try { await fetch('/api/chat/clear', { method: 'POST' }) } catch {}
+    const container = document.getElementById('chat-messages')
+    container.innerHTML = ''
+    appendMsg("Chat cleared. How can I help you with your crops today?", 'bot')
+  }
+
+  function autoResize(el) {
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px'
+  }
+  document.getElementById('chat-input').addEventListener('input', function() { autoResize(this) })
+</script>
+</body>
+</html>
